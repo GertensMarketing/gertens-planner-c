@@ -1,0 +1,8 @@
+{
+  "name": "netlify-functions",
+  "version": "1.0.0",
+  "description": "Serverless functions for Gertens Garden Planner",
+  "dependencies": {
+    "@google/generative-ai": "^0.1.3"
+  }
+}
