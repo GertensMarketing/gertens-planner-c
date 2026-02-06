@@ -14,7 +14,7 @@ exports.handler = async (event, context) => {
 
     // Initialize Gemini API
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
 
     // Convert base64 image to the format Gemini expects
     const imageData = image.split(',')[1]; // Remove data:image/jpeg;base64, prefix
