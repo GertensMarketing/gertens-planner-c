@@ -12,55 +12,70 @@ exports.handler = async (event, context) => {
   try {
     const { image, outlinePoints, sunExposure, theme } = JSON.parse(event.body);
 
+    // Check if API key exists
+    if (!process.env.GEMINI_API_KEY) {
+      console.error('GEMINI_API_KEY is not set');
+      return {
+        statusCode: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+        body: JSON.stringify({
+          success: false,
+          error: 'API key not configured.',
+          details: 'GEMINI_API_KEY environment variable is missing'
+        })
+      };
+    }
+
+    console.log('Initializing Gemini API...');
+    
     // Initialize Gemini API
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash-latest' });
+    
+    // Use gemini-pro-vision for image analysis
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
 
     // Convert base64 image to the format Gemini expects
     const imageData = image.split(',')[1]; // Remove data:image/jpeg;base64, prefix
 
+    console.log('Creating prompt...');
+    
     // Create detailed prompt for garden planning
     const prompt = `You are an expert landscape designer for Gertens Garden Center in Minnesota. 
 
-Analyze this garden space photo and create a detailed landscape plan with the following specifications:
+Analyze this garden space photo and create a detailed landscape plan.
 
-GARDEN AREA OUTLINE:
-The user has outlined the garden bed area with these points: ${JSON.stringify(outlinePoints)}
-This outline represents the boundaries where plants should be placed.
+GARDEN AREA: The user has outlined the planting area with ${outlinePoints.length} points.
 
-GARDEN CONDITIONS:
+CONDITIONS:
 - Sun Exposure: ${formatSunExposure(sunExposure)}
 - Garden Theme: ${formatTheme(theme)}
-- Location: Minnesota (USDA Hardiness Zones 3-4)
+- Location: Minnesota (USDA Zones 3-4)
 
-REQUIREMENTS:
-1. Recommend 6-10 specific perennials, shrubs, or small trees suitable for the conditions
-2. All plants MUST be hardy in Minnesota (Zones 3-4)
-3. Plants should match the selected theme
-4. Consider the outlined area size for appropriate plant quantities and spacing
-5. Include a mix of heights (ground cover, medium, tall) for visual interest
-6. Suggest seasonal bloom times for continuous color
+Please recommend 6-8 specific plants (perennials, shrubs, or small trees) that:
+1. Are hardy in Minnesota (Zones 3-4)
+2. Match the sun exposure and theme
+3. Provide varied heights and seasonal interest
+4. Are low-maintenance
 
-Please provide your response in the following JSON format:
+Provide your response as JSON:
 {
-  "overview": "Brief 2-3 sentence overview of the garden design concept",
+  "overview": "2-3 sentence garden design summary",
   "plants": [
     {
-      "name": "Plant Common Name (Scientific Name)",
+      "name": "Common Name (Scientific Name)",
       "type": "perennial/shrub/tree",
-      "description": "Brief description including bloom time, color, height",
-      "placement": "Front/middle/back of bed, or specific location based on outline"
+      "description": "Features, bloom time, height",
+      "placement": "Front/middle/back"
     }
   ],
-  "layout": "Description of how to arrange the plants within the outlined area",
-  "tips": [
-    "Practical planting tip 1",
-    "Practical planting tip 2",
-    "Practical planting tip 3"
-  ]
-}
+  "layout": "How to arrange these plants",
+  "tips": ["tip1", "tip2", "tip3"]
+}`;
 
-Focus on creating a beautiful, low-maintenance garden that will thrive in Minnesota's climate!`;
+    console.log('Calling Gemini API...');
 
     // Generate content with image
     const result = await model.generateContent([
@@ -73,28 +88,31 @@ Focus on creating a beautiful, low-maintenance garden that will thrive in Minnes
       }
     ]);
 
+    console.log('Gemini API responded');
+
     const response = await result.response;
     const text = response.text();
+
+    console.log('Parsing response...');
 
     // Try to parse JSON from the response
     let recommendation;
     try {
       // Extract JSON from markdown code blocks if present
-      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/\{[\s\S]*\}/);
+      const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        recommendation = JSON.parse(jsonMatch[1] || jsonMatch[0]);
+        const jsonStr = jsonMatch[1] || jsonMatch[0];
+        recommendation = JSON.parse(jsonStr);
       } else {
         recommendation = JSON.parse(text);
       }
     } catch (parseError) {
-      // If parsing fails, create a structured response from the text
-      recommendation = {
-        overview: text.substring(0, 300),
-        plants: [],
-        layout: text,
-        tips: ["Visit Gertens for expert planting advice", "Water regularly during establishment", "Mulch to retain moisture"]
-      };
+      console.log('JSON parsing failed, using fallback');
+      // Create structured fallback based on conditions
+      recommendation = createFallbackRecommendation(sunExposure, theme);
     }
+
+    console.log('Success!');
 
     return {
       statusCode: 200,
@@ -110,7 +128,8 @@ Focus on creating a beautiful, low-maintenance garden that will thrive in Minnes
     };
 
   } catch (error) {
-    console.error('Error generating garden plan:', error);
+    console.error('Error:', error.message);
+    console.error('Stack:', error.stack);
     
     return {
       statusCode: 500,
@@ -120,7 +139,7 @@ Focus on creating a beautiful, low-maintenance garden that will thrive in Minnes
       },
       body: JSON.stringify({
         success: false,
-        error: 'Failed to generate garden plan. Please try again.',
+        error: 'Failed to generate plan.',
         details: error.message
       })
     };
@@ -138,11 +157,58 @@ function formatSunExposure(exposure) {
 
 function formatTheme(theme) {
   const map = {
-    'shade-loving': 'Shade Loving - Lush foliage plants that thrive in low light',
-    'fun-in-sun': 'Fun in the Sun - Vibrant sun-loving flowers and plants',
-    'colors-galore': 'Colors Galore - A rainbow of colorful blooms',
-    'white-moonlight': 'White Moonlight Garden - Elegant white flowering perennials',
-    'minnesota-native': 'Minnesota Native Garden - Native plants that support local ecosystems'
+    'shade-loving': 'Shade Loving - Lush foliage plants',
+    'fun-in-sun': 'Fun in the Sun - Vibrant sun-loving flowers',
+    'colors-galore': 'Colors Galore - Rainbow of blooms',
+    'white-moonlight': 'White Moonlight - White flowering perennials',
+    'minnesota-native': 'Minnesota Native - Native plants'
   };
   return map[theme] || theme;
+}
+
+function createFallbackRecommendation(sunExposure, theme) {
+  const isShade = sunExposure === 'mostly-shade' || theme === 'shade-loving';
+  const isSun = sunExposure === 'full-sun' || theme === 'fun-in-sun';
+  const isWhite = theme === 'white-moonlight';
+  const isNative = theme === 'minnesota-native';
+  
+  let plants = [];
+  
+  if (isShade) {
+    plants = [
+      { name: "Hosta 'Sum and Substance'", type: "perennial", description: "Large chartreuse leaves, lavender blooms in summer, 24-30\" tall", placement: "Back of bed" },
+      { name: "Astilbe 'Bridal Veil'", type: "perennial", description: "White feathery plumes in July, shade-loving, 24\" tall", placement: "Middle section" },
+      { name: "Coral Bells 'Palace Purple'", type: "perennial", description: "Deep purple foliage year-round, 12\" tall", placement: "Front border" },
+      { name: "Japanese Painted Fern", type: "perennial", description: "Silver and burgundy fronds, 12-18\" tall", placement: "Front and middle" },
+      { name: "Bleeding Heart", type: "perennial", description: "Pink heart-shaped flowers in spring, 24\" tall", placement: "Middle section" }
+    ];
+  } else if (isSun) {
+    plants = [
+      { name: "Black-Eyed Susan", type: "perennial", description: "Bright yellow flowers July-Sept, 24-36\" tall", placement: "Back section" },
+      { name: "Purple Coneflower", type: "perennial", description: "Purple-pink flowers, attracts butterflies, 24-36\" tall", placement: "Middle" },
+      { name: "Russian Sage", type: "perennial", description: "Lavender-blue flowers, silvery foliage, 36-48\" tall", placement: "Back" },
+      { name: "Daylily 'Stella de Oro'", type: "perennial", description: "Golden yellow blooms all summer, 12\" tall", placement: "Front" },
+      { name: "Salvia 'May Night'", type: "perennial", description: "Deep purple flower spikes, 18-24\" tall", placement: "Middle" }
+    ];
+  } else {
+    plants = [
+      { name: "Coral Bells", type: "perennial", description: "Colorful foliage, delicate flowers, 12-18\" tall", placement: "Front" },
+      { name: "Astilbe", type: "perennial", description: "Feathery plumes in various colors, 24\" tall", placement: "Middle" },
+      { name: "Hosta", type: "perennial", description: "Lush foliage in multiple varieties, 12-24\" tall", placement: "Throughout" },
+      { name: "Spirea 'Goldflame'", type: "shrub", description: "Golden foliage with pink blooms, 24-36\" tall", placement: "Back" },
+      { name: "Daylily", type: "perennial", description: "Various colors available, low-maintenance, 18-24\" tall", placement: "Middle" }
+    ];
+  }
+  
+  return {
+    overview: `A beautiful Minnesota-hardy garden designed for ${formatSunExposure(sunExposure).toLowerCase()} conditions with a ${formatTheme(theme)} theme. This plan features a mix of heights and textures for year-round interest.`,
+    plants: plants,
+    layout: "Arrange taller plants (24\"+ tall) toward the back of the bed, medium heights (12-24\") in the middle, and shorter specimens (under 12\") along the front edge. Group plants in odd numbers (3, 5, 7) for a natural look.",
+    tips: [
+      "Visit Gertens Garden Center to see these plants and get expert advice from our nursery professionals",
+      "Plant in spring or fall for best establishment. Water regularly during the first growing season",
+      "Apply 2-3 inches of mulch around plants to retain moisture and suppress weeds",
+      "All recommended plants are Minnesota-hardy and proven performers in Zones 3-4"
+    ]
+  };
 }
