@@ -14,8 +14,6 @@ exports.handler = async (event, context) => {
 
     console.log('=== DEBUGGING INFO ===');
     console.log('API Key exists:', !!process.env.GEMINI_API_KEY);
-    console.log('API Key starts with AIza:', process.env.GEMINI_API_KEY?.startsWith('AIza'));
-    console.log('API Key length:', process.env.GEMINI_API_KEY?.length);
     console.log('Sun exposure:', sunExposure);
     console.log('Theme:', theme);
     console.log('Outline points:', outlinePoints.length);
@@ -30,16 +28,35 @@ exports.handler = async (event, context) => {
     // Initialize Gemini API
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     
-    console.log('Getting model: gemini-pro-vision');
+    // Try the correct model names in order
+    const modelNames = [
+      'gemini-1.5-flash',
+      'gemini-1.5-pro',
+      'gemini-pro'
+    ];
     
-    // Use gemini-pro-vision for image analysis
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro-vision' });
-
-    console.log('Model initialized successfully');
+    let model = null;
+    let usedModel = null;
+    
+    for (const modelName of modelNames) {
+      try {
+        console.log(`Trying model: ${modelName}`);
+        model = genAI.getGenerativeModel({ model: modelName });
+        usedModel = modelName;
+        console.log(`Successfully initialized model: ${modelName}`);
+        break;
+      } catch (err) {
+        console.log(`Model ${modelName} failed:`, err.message);
+      }
+    }
+    
+    if (!model) {
+      throw new Error('Could not initialize any Gemini model');
+    }
 
     // Convert base64 image to the format Gemini expects
     const imageData = image.split(',')[1];
-    console.log('Image data length:', imageData.length);
+    console.log('Image data prepared, length:', imageData.length);
 
     // Create detailed prompt for garden planning
     const prompt = `You are an expert landscape designer for Gertens Garden Center in Minnesota. 
@@ -59,7 +76,7 @@ Please recommend 6-8 specific plants (perennials, shrubs, or small trees) that:
 3. Provide varied heights and seasonal interest
 4. Are low-maintenance
 
-Provide your response as JSON:
+IMPORTANT: Provide your response as valid JSON only, with no markdown formatting:
 {
   "overview": "2-3 sentence garden design summary",
   "plants": [
@@ -74,11 +91,13 @@ Provide your response as JSON:
   "tips": ["tip1", "tip2", "tip3"]
 }`;
 
-    console.log('Prompt created, calling Gemini API...');
+    console.log('Calling Gemini API with model:', usedModel);
 
     // Generate content with image
     const result = await model.generateContent([
-      prompt,
+      {
+        text: prompt
+      },
       {
         inlineData: {
           data: imageData,
@@ -87,29 +106,35 @@ Provide your response as JSON:
       }
     ]);
 
-    console.log('Gemini API call completed');
+    console.log('Gemini API call completed successfully');
 
     const response = await result.response;
     const text = response.text();
 
     console.log('Response received, length:', text.length);
-    console.log('Response preview:', text.substring(0, 200));
+    console.log('Response preview:', text.substring(0, 300));
 
     // Try to parse JSON from the response
     let recommendation;
     
-    // Extract JSON from markdown code blocks if present
-    const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
-    
-    if (jsonMatch) {
-      const jsonStr = jsonMatch[1] || jsonMatch[0];
-      console.log('Found JSON match, parsing...');
-      recommendation = JSON.parse(jsonStr);
-      console.log('JSON parsed successfully, plants count:', recommendation.plants?.length);
-    } else {
-      console.log('No JSON found in response, trying direct parse...');
-      recommendation = JSON.parse(text);
-      console.log('Direct parse successful');
+    try {
+      // Extract JSON from markdown code blocks if present
+      const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
+      
+      if (jsonMatch) {
+        const jsonStr = jsonMatch[1] || jsonMatch[0];
+        console.log('Found JSON match, parsing...');
+        recommendation = JSON.parse(jsonStr);
+        console.log('JSON parsed successfully, plants count:', recommendation.plants?.length);
+      } else {
+        console.log('No JSON pattern found, trying direct parse...');
+        recommendation = JSON.parse(text);
+        console.log('Direct parse successful');
+      }
+    } catch (parseError) {
+      console.error('JSON parsing failed:', parseError.message);
+      console.error('Attempted to parse:', text.substring(0, 500));
+      throw new Error(`Failed to parse AI response as JSON: ${parseError.message}`);
     }
 
     console.log('=== SUCCESS ===');
@@ -124,7 +149,8 @@ Provide your response as JSON:
       },
       body: JSON.stringify({
         success: true,
-        recommendation: recommendation
+        recommendation: recommendation,
+        modelUsed: usedModel
       })
     };
 
@@ -134,7 +160,6 @@ Provide your response as JSON:
     console.error('Error message:', error.message);
     console.error('Error status:', error.status);
     console.error('Error statusText:', error.statusText);
-    console.error('Full error:', JSON.stringify(error, null, 2));
     console.error('Stack trace:', error.stack);
     
     return {
