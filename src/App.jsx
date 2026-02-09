@@ -92,7 +92,8 @@ function App() {
         body: JSON.stringify({
           plants: plants,
           sunExposure: sunExposure,
-          theme: theme
+          theme: theme,
+          originalImage: uploadedImage  // Pass the original photo for context
         })
       });
 
