@@ -18,15 +18,15 @@ exports.handler = async (event, context) => {
     console.log('Initializing Gemini 2.5 Flash...');
     
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    
-    // Use Gemini 2.5 Flash - the latest and greatest!
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const imageGenModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image' });
 
     const imageData = image.split(',')[1];
 
-    console.log('Creating garden planning prompt...');
+    console.log('Step 1: Generating plant recommendations...');
     
-    const prompt = `You are an expert landscape designer for Gertens Garden Center in Minnesota. 
+    // First, get the plant recommendations
+    const planPrompt = `You are an expert landscape designer for Gertens Garden Center in Minnesota. 
 
 Analyze this garden space photo and create a detailed landscape plan.
 
@@ -58,10 +58,8 @@ Respond with ONLY valid JSON (no markdown, no code blocks):
   "tips": ["practical tip 1", "practical tip 2", "practical tip 3"]
 }`;
 
-    console.log('Calling Gemini 2.5 Flash API...');
-
-    const result = await model.generateContent([
-      prompt,
+    const planResult = await model.generateContent([
+      planPrompt,
       {
         inlineData: {
           data: imageData,
@@ -70,68 +68,94 @@ Respond with ONLY valid JSON (no markdown, no code blocks):
       }
     ]);
 
-    console.log('✅ API call successful');
+    const planResponse = await planResult.response;
+    const planText = planResponse.text();
 
-    const response = await result.response;
-    const text = response.text();
-
-    console.log('Parsing response...');
-
-    // Parse JSON from response
+    // Parse plant recommendations
     let recommendation;
     try {
-      let cleanText = text.trim();
-      
-      // Remove markdown code blocks if present
-      cleanText = cleanText.replace(/```json\s*/g, '');
-      cleanText = cleanText.replace(/```\s*/g, '');
-      cleanText = cleanText.trim();
-      
-      // Extract JSON object
+      let cleanText = planText.trim();
+      cleanText = cleanText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
       const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         cleanText = jsonMatch[0];
       }
-      
       recommendation = JSON.parse(cleanText);
-      console.log('✅ JSON parsed successfully');
-      console.log('Plants recommended:', recommendation.plants?.length || 0);
+      console.log('✅ Plant recommendations parsed:', recommendation.plants?.length || 0, 'plants');
     } catch (parseError) {
-      console.error('JSON parse failed:', parseError.message);
-      
-      // Fallback response
-      recommendation = {
-        overview: "A beautiful Minnesota garden design based on your selections. " + text.substring(0, 200),
-        plants: [
-          {
-            name: "Black-Eyed Susan (Rudbeckia fulgida)",
-            type: "perennial",
-            description: "Golden yellow flowers July-September, 24-36\" tall, drought tolerant",
-            placement: "Middle and back of bed"
-          },
-          {
-            name: "Purple Coneflower (Echinacea purpurea)",
-            type: "perennial",
-            description: "Purple-pink flowers, attracts butterflies, 24-36\" tall",
-            placement: "Middle section"
-          },
-          {
-            name: "Hosta 'Sum and Substance'",
-            type: "perennial",
-            description: "Large chartreuse leaves, lavender blooms, 24-30\" tall",
-            placement: "Shaded areas or back"
-          }
-        ],
-        layout: "Arrange plants with taller specimens toward the back, medium heights in middle, and shorter plants in front for best visual impact.",
-        tips: [
-          "Visit Gertens Garden Center for expert advice and to see these plants",
-          "Water regularly during first growing season",
-          "Apply 2-3 inches of mulch to retain moisture"
-        ]
-      };
+      console.error('JSON parse failed, using fallback');
+      recommendation = createFallbackRecommendation(sunExposure, theme);
     }
 
-    console.log('=== SUCCESS ===');
+    // Generate plant list for visualizations
+    const plantList = recommendation.plants.map(p => p.name).join(', ');
+
+    console.log('Step 2: Generating watercolor rendering...');
+
+    // Generate watercolor rendering using the original photo as reference
+    const watercolorPrompt = `Create a beautiful watercolor illustration showing this garden space transformed with the following plants: ${plantList}.
+
+Style requirements:
+- Watercolor painting style with soft, flowing colors
+- Maintain the same viewing angle and framing as the reference photo
+- Show the garden in full bloom during summer
+- Include these specific plants placed appropriately: ${recommendation.plants.map(p => `${p.name} (${p.placement})`).join('; ')}
+- Artistic, dreamy garden aesthetic
+- Vibrant colors for flowers, lush greens for foliage
+- Professional landscape illustration quality`;
+
+    let watercolorImage = null;
+    try {
+      const watercolorResult = await imageGenModel.generateContent([
+        watercolorPrompt,
+        {
+          inlineData: {
+            data: imageData,
+            mimeType: 'image/jpeg'
+          }
+        }
+      ]);
+      
+      const watercolorResponse = await watercolorResult.response;
+      // Note: Image generation returns base64 in the response
+      watercolorImage = watercolorResponse.text(); // This will contain the base64 image
+      console.log('✅ Watercolor rendering generated');
+    } catch (imgError) {
+      console.error('Watercolor generation failed:', imgError.message);
+      watercolorImage = null;
+    }
+
+    console.log('Step 3: Generating bird\'s eye planting diagram...');
+
+    // Generate bird's eye view planting diagram
+    const birdEyePrompt = `Create a black and white bird's eye view planting diagram showing the exact placement and spacing of plants.
+
+Requirements:
+- Top-down view (bird's eye perspective)
+- Black ink on white paper style, like an architectural drawing
+- Show the garden bed outline matching these coordinates: ${JSON.stringify(outlinePoints)}
+- Draw circles or shapes representing each plant with their names labeled
+- Include spacing measurements between plants (in feet)
+- Show plant placement: ${recommendation.plants.map(p => `${p.name} at ${p.placement}`).join('; ')}
+- Professional landscape architecture diagram style
+- Clear, readable labels for each plant
+- Include a simple scale reference
+- Show the outline boundary clearly
+
+Style: Technical drawing, clean lines, architectural planting plan.`;
+
+    let birdEyeImage = null;
+    try {
+      const birdEyeResult = await model.generateContent(birdEyePrompt);
+      const birdEyeResponse = await birdEyeResult.response;
+      birdEyeImage = birdEyeResponse.text();
+      console.log('✅ Bird\'s eye diagram generated');
+    } catch (imgError) {
+      console.error('Bird\'s eye generation failed:', imgError.message);
+      birdEyeImage = null;
+    }
+
+    console.log('=== SUCCESS - All assets generated ===');
 
     return {
       statusCode: 200,
@@ -142,7 +166,12 @@ Respond with ONLY valid JSON (no markdown, no code blocks):
       },
       body: JSON.stringify({
         success: true,
-        recommendation: recommendation
+        recommendation: recommendation,
+        visualizations: {
+          watercolor: watercolorImage,
+          birdEye: birdEyeImage,
+          note: 'Watercolor shows transformed garden in same angle. Bird\'s eye shows planting layout and spacing.'
+        }
       })
     };
 
@@ -165,6 +194,38 @@ Respond with ONLY valid JSON (no markdown, no code blocks):
     };
   }
 };
+
+function createFallbackRecommendation(sunExposure, theme) {
+  return {
+    overview: "A beautiful Minnesota garden designed for your conditions.",
+    plants: [
+      {
+        name: "Black-Eyed Susan (Rudbeckia fulgida)",
+        type: "perennial",
+        description: "Golden yellow flowers July-September, 24-36\" tall",
+        placement: "Middle and back"
+      },
+      {
+        name: "Purple Coneflower (Echinacea purpurea)",
+        type: "perennial",
+        description: "Purple-pink flowers, 24-36\" tall",
+        placement: "Middle section"
+      },
+      {
+        name: "Hosta 'Sum and Substance'",
+        type: "perennial",
+        description: "Large chartreuse leaves, 24-30\" tall",
+        placement: "Back of bed"
+      }
+    ],
+    layout: "Arrange with taller plants in back, medium in middle, shorter in front.",
+    tips: [
+      "Visit Gertens for expert advice",
+      "Water regularly during establishment",
+      "Apply mulch to retain moisture"
+    ]
+  };
+}
 
 function formatSunExposure(exposure) {
   const map = {
