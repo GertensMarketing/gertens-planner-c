@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const GardenPlanResult = ({ gardenPlan, loading, loadingDiagram, onStartOver }) => {
+const GardenPlanResult = ({ gardenPlan, loading, loadingWatercolor, onStartOver }) => {
   const [activeTab, setActiveTab] = useState('plants');
 
   if (loading) {
@@ -30,18 +30,6 @@ const GardenPlanResult = ({ gardenPlan, loading, loadingDiagram, onStartOver }) 
             <p className="text-gray-600">
               Our AI is analyzing your space and selecting perfect plants...
             </p>
-          </div>
-          <div className="max-w-md">
-            <div className="space-y-2 text-sm text-gray-500">
-              <p className="flex items-center justify-center">
-                <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-                Analyzing your garden space
-              </p>
-              <p className="flex items-center justify-center">
-                <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-                Selecting Minnesota-hardy plants
-              </p>
-            </div>
           </div>
         </div>
       </div>
@@ -77,7 +65,7 @@ const GardenPlanResult = ({ gardenPlan, loading, loadingDiagram, onStartOver }) 
     );
   }
 
-  const hasDiagram = gardenPlan?.visualizations?.birdEye;
+  const hasWatercolor = gardenPlan?.visualizations?.watercolor;
 
   return (
     <div>
@@ -119,15 +107,15 @@ const GardenPlanResult = ({ gardenPlan, loading, loadingDiagram, onStartOver }) 
             🌱 Plant List
           </button>
           <button
-            onClick={() => setActiveTab('diagram')}
+            onClick={() => setActiveTab('watercolor')}
             className={`px-6 py-3 font-semibold transition-colors relative ${
-              activeTab === 'diagram'
+              activeTab === 'watercolor'
                 ? 'text-gertens-blue border-b-2 border-gertens-blue'
                 : 'text-gray-600 hover:text-gertens-blue'
             }`}
           >
-            📐 Planting Diagram
-            {loadingDiagram && (
+            🎨 Watercolor View
+            {loadingWatercolor && (
               <span className="ml-2 inline-block w-4 h-4 border-2 border-gertens-blue border-t-transparent rounded-full animate-spin"></span>
             )}
           </button>
@@ -232,33 +220,39 @@ const GardenPlanResult = ({ gardenPlan, loading, loadingDiagram, onStartOver }) 
           </div>
         )}
 
-        {activeTab === 'diagram' && (
+        {activeTab === 'watercolor' && (
           <div>
             <h3 className="text-2xl font-bold text-gray-800 mb-4">
-              📐 Bird's Eye Planting Diagram
+              🎨 Watercolor Garden Rendering
             </h3>
-            {loadingDiagram && !hasDiagram ? (
+            {loadingWatercolor && !hasWatercolor ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gertens-blue mx-auto mb-4"></div>
-                <p className="text-gray-600">Generating your planting diagram...</p>
+                <p className="text-gray-600">Creating your watercolor illustration...</p>
+                <p className="text-sm text-gray-500 mt-2">This may take 15-30 seconds</p>
               </div>
-            ) : hasDiagram ? (
+            ) : hasWatercolor ? (
               <div>
                 <p className="text-gray-600 mb-6">
-                  Top-down view showing exact plant placement within your outlined area. Each numbered circle corresponds to the plants in your list.
+                  An artistic watercolor illustration showing how your garden will look in full bloom!
                 </p>
-                <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
-                  <div dangerouslySetInnerHTML={{ __html: gardenPlan.visualizations.birdEye }} />
+                <div className="bg-gray-100 rounded-lg p-4">
+                  <img
+                    src={`data:image/jpeg;base64,${gardenPlan.visualizations.watercolor}`}
+                    alt="Watercolor garden rendering"
+                    className="w-full rounded-lg shadow-lg"
+                  />
                 </div>
                 <div className="mt-4 p-4 bg-blue-50 rounded-lg">
                   <p className="text-sm text-gray-700">
-                    <strong>How to use this diagram:</strong> The numbers on the diagram match the plant numbers in your Plant List. Use this to visualize spacing and placement in your actual garden bed.
+                    <strong>Artistic Interpretation:</strong> This watercolor painting shows your garden in peak bloom with all recommended plants. Actual results will vary based on planting, care, and growing conditions.
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="text-center py-12">
-                <p className="text-gray-600">Diagram will appear here once generated.</p>
+              <div className="text-center py-12 bg-gray-50 rounded-lg">
+                <p className="text-gray-600 mb-4">Watercolor rendering will appear here once generated</p>
+                <p className="text-sm text-gray-500">Click this tab after your plan loads to see the watercolor view</p>
               </div>
             )}
           </div>
