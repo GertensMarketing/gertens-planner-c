@@ -1,7 +1,6 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 exports.handler = async (event, context) => {
-  // Only allow POST requests
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
@@ -12,174 +11,72 @@ exports.handler = async (event, context) => {
   try {
     const { image, outlinePoints, sunExposure, theme } = JSON.parse(event.body);
 
-    // Check if API key exists
     if (!process.env.GEMINI_API_KEY) {
-      console.error('GEMINI_API_KEY is not set');
-      return {
-        statusCode: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-        body: JSON.stringify({
-          success: false,
-          error: 'API key not configured',
-          details: 'GEMINI_API_KEY environment variable is missing'
-        })
-      };
+      throw new Error('GEMINI_API_KEY not set');
     }
 
-    console.log('Initializing Gemini 1.5 Flash with vision...');
+    console.log('=== LISTING AVAILABLE MODELS ===');
     
-    // Initialize Gemini API
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     
-    // Use Gemini 1.5 Flash - best balance of speed, cost, and capability
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
-    // Convert base64 image to the format Gemini expects
-    const imageData = image.split(',')[1]; // Remove data:image/jpeg;base64, prefix
-
-    console.log('Creating detailed garden planning prompt...');
-    
-    // Create detailed prompt for garden planning
-    const prompt = `You are an expert landscape designer for Gertens Garden Center in Minnesota. 
-
-Analyze this garden space photo and create a detailed landscape plan with the following specifications:
-
-GARDEN AREA OUTLINE:
-The user has outlined the garden bed area with ${outlinePoints.length} points. This outline represents the boundaries where plants should be placed.
-
-GARDEN CONDITIONS:
-- Sun Exposure: ${formatSunExposure(sunExposure)}
-- Garden Theme: ${formatTheme(theme)}
-- Location: Minnesota (USDA Hardiness Zones 3-4)
-
-REQUIREMENTS:
-1. Recommend 6-10 specific perennials, shrubs, or small trees suitable for the conditions
-2. All plants MUST be hardy in Minnesota (Zones 3-4)
-3. Plants should match the selected theme and sun exposure
-4. Consider the outlined area size for appropriate plant quantities and spacing
-5. Include a mix of heights (ground cover, medium, tall) for visual interest
-6. Suggest seasonal bloom times for continuous color throughout the growing season
-
-Please provide your response ONLY as valid JSON with no markdown formatting or code blocks:
-{
-  "overview": "Brief 2-3 sentence overview of the garden design concept",
-  "plants": [
-    {
-      "name": "Plant Common Name (Scientific Name)",
-      "type": "perennial/shrub/tree",
-      "description": "Brief description including bloom time, color, height",
-      "placement": "Front/middle/back of bed, or specific location based on outline"
-    }
-  ],
-  "layout": "Description of how to arrange the plants within the outlined area",
-  "tips": [
-    "Practical planting tip 1",
-    "Practical planting tip 2",
-    "Practical planting tip 3"
-  ]
-}
-
-Focus on creating a beautiful, low-maintenance garden that will thrive in Minnesota's climate!`;
-
-    console.log('Calling Gemini 1.5 Flash API with vision...');
-
-    // Generate content with image and text
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          data: imageData,
-          mimeType: 'image/jpeg'
-        }
-      }
-    ]);
-
-    console.log('Gemini API responded successfully');
-
-    const response = await result.response;
-    const text = response.text();
-
-    console.log('Response received, parsing...');
-
-    // Try to parse JSON from the response
-    let recommendation;
+    // Try to list available models
     try {
-      // Remove markdown code blocks if present
-      let cleanText = text.trim();
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models?key=' + process.env.GEMINI_API_KEY);
+      const data = await response.json();
       
-      // Extract JSON from markdown code blocks
-      const jsonMatch = cleanText.match(/```json\s*([\s\S]*?)\s*```/);
-      if (jsonMatch) {
-        cleanText = jsonMatch[1];
+      console.log('Available models:');
+      if (data.models) {
+        data.models.forEach(model => {
+          console.log('- Model:', model.name);
+          console.log('  Supports:', model.supportedGenerationMethods);
+        });
       } else {
-        // Try to extract just the JSON object
-        const objectMatch = cleanText.match(/\{[\s\S]*\}/);
-        if (objectMatch) {
-          cleanText = objectMatch[0];
-        }
+        console.log('Response:', JSON.stringify(data, null, 2));
       }
-      
-      recommendation = JSON.parse(cleanText);
-      console.log('✅ Successfully parsed JSON response');
-      console.log('Plants recommended:', recommendation.plants?.length || 0);
-    } catch (parseError) {
-      console.error('JSON parsing failed:', parseError.message);
-      console.error('Response text:', text.substring(0, 500));
-      
-      // If parsing fails, create a structured response from the text
-      recommendation = {
-        overview: text.substring(0, 300) + '...',
-        plants: [
-          {
-            name: "Hosta (Hosta spp.)",
-            type: "perennial",
-            description: "Shade-loving foliage plant with lush leaves, various colors available, 12-30\" tall",
-            placement: "Throughout the outlined area"
-          },
-          {
-            name: "Astilbe (Astilbe spp.)",
-            type: "perennial",
-            description: "Feathery plumes in summer, prefers partial shade, 18-36\" tall",
-            placement: "Middle section of garden bed"
-          },
-          {
-            name: "Coral Bells (Heuchera)",
-            type: "perennial",
-            description: "Colorful foliage year-round, tiny flowers, 12-18\" tall",
-            placement: "Front border"
-          }
-        ],
-        layout: "AI provided detailed recommendations. Arrange plants with taller specimens in back, medium heights in middle, and shorter plants in front.",
-        tips: [
-          "Visit Gertens Garden Center for expert planting advice and to see these plants in person",
-          "Water regularly during the first growing season to establish strong root systems",
-          "Apply 2-3 inches of mulch to retain moisture and suppress weeds"
-        ]
-      };
+    } catch (listError) {
+      console.error('Could not list models:', listError.message);
     }
 
-    console.log('=== SUCCESS - Garden plan generated ===');
+    // Now let's try the models one by one
+    const modelsToTry = [
+      'models/gemini-1.5-flash',
+      'models/gemini-1.5-pro',
+      'models/gemini-pro',
+      'models/gemini-pro-vision',
+      'gemini-1.5-flash',
+      'gemini-1.5-pro', 
+      'gemini-pro',
+      'gemini-pro-vision'
+    ];
 
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      },
-      body: JSON.stringify({
-        success: true,
-        recommendation: recommendation
-      })
-    };
+    console.log('\n=== TRYING EACH MODEL ===');
+    
+    for (const modelName of modelsToTry) {
+      try {
+        console.log(`\nTrying: ${modelName}`);
+        const model = genAI.getGenerativeModel({ model: modelName });
+        
+        // Try a simple text generation
+        const result = await model.generateContent('Say "test successful"');
+        const response = await result.response;
+        const text = response.text();
+        
+        console.log(`✅ SUCCESS with ${modelName}`);
+        console.log(`Response: ${text.substring(0, 50)}`);
+        
+        // This model works! Use it for the actual request
+        return await generatePlan(model, sunExposure, theme, outlinePoints, image, modelName);
+        
+      } catch (error) {
+        console.log(`❌ FAILED: ${modelName} - ${error.message}`);
+      }
+    }
+
+    throw new Error('No working model found. Your API key may not have access to Gemini models.');
 
   } catch (error) {
-    console.error('Error generating garden plan:', error);
-    console.error('Error details:', error.message);
-    console.error('Error stack:', error.stack);
+    console.error('=== FINAL ERROR ===');
+    console.error('Message:', error.message);
     
     return {
       statusCode: 500,
@@ -189,29 +86,95 @@ Focus on creating a beautiful, low-maintenance garden that will thrive in Minnes
       },
       body: JSON.stringify({
         success: false,
-        error: 'Failed to generate garden plan. Please try again.',
-        details: error.message
+        error: error.message,
+        instructions: 'Create a NEW API key in Google Cloud Console at https://console.cloud.google.com/apis/credentials and update it in Netlify environment variables'
       })
     };
   }
 };
 
+async function generatePlan(model, sunExposure, theme, outlinePoints, image, modelName) {
+  console.log(`\n=== GENERATING PLAN WITH ${modelName} ===`);
+  
+  const imageData = image.split(',')[1];
+  
+  const prompt = `You are an expert landscape designer for Gertens Garden Center in Minnesota.
+
+Create a garden plan for:
+- Sun: ${formatSunExposure(sunExposure)}
+- Theme: ${formatTheme(theme)}
+- Area: ${outlinePoints.length} outline points
+- Location: Minnesota (Zones 3-4)
+
+Recommend 6-8 hardy plants as JSON:
+{
+  "overview": "design summary",
+  "plants": [{"name": "Name (Scientific)", "type": "type", "description": "details", "placement": "location"}],
+  "layout": "arrangement tips",
+  "tips": ["tip1", "tip2", "tip3"]
+}`;
+
+  try {
+    // Try with image if it's a vision model
+    const isVisionModel = modelName.includes('vision') || modelName.includes('1.5');
+    
+    let result;
+    if (isVisionModel) {
+      console.log('Using vision model with image');
+      result = await model.generateContent([
+        prompt,
+        { inlineData: { data: imageData, mimeType: 'image/jpeg' } }
+      ]);
+    } else {
+      console.log('Using text-only model');
+      result = await model.generateContent(prompt);
+    }
+
+    const response = await result.response;
+    const text = response.text();
+
+    // Parse JSON
+    let cleanText = text.trim().replace(/```json\s*/g, '').replace(/```\s*/g, '');
+    const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
+    const recommendation = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(cleanText);
+
+    console.log('✅ Plan generated successfully');
+
+    return {
+      statusCode: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+      body: JSON.stringify({
+        success: true,
+        recommendation,
+        modelUsed: modelName
+      })
+    };
+
+  } catch (error) {
+    console.error('Generation error:', error.message);
+    throw error;
+  }
+}
+
 function formatSunExposure(exposure) {
   const map = {
-    'full-sun': 'Full Sun (6+ hours direct sunlight)',
-    'partial-sun': 'Partial Sun (3-6 hours direct sunlight)',
-    'mostly-shade': 'Mostly Shade (less than 3 hours direct sunlight)'
+    'full-sun': 'Full Sun (6+ hours)',
+    'partial-sun': 'Partial Sun (3-6 hours)',
+    'mostly-shade': 'Mostly Shade (<3 hours)'
   };
   return map[exposure] || exposure;
 }
 
 function formatTheme(theme) {
   const map = {
-    'shade-loving': 'Shade Loving - Lush foliage plants that thrive in low light',
-    'fun-in-sun': 'Fun in the Sun - Vibrant sun-loving flowers and plants',
-    'colors-galore': 'Colors Galore - A rainbow of colorful blooms',
-    'white-moonlight': 'White Moonlight Garden - Elegant white flowering perennials',
-    'minnesota-native': 'Minnesota Native Garden - Native plants that support local ecosystems'
+    'shade-loving': 'Shade Loving',
+    'fun-in-sun': 'Fun in the Sun',
+    'colors-galore': 'Colors Galore',
+    'white-moonlight': 'White Moonlight',
+    'minnesota-native': 'Minnesota Native'
   };
   return map[theme] || theme;
 }
