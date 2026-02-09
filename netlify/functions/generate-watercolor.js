@@ -25,6 +25,11 @@ exports.handler = async (event, context) => {
     const plantNames = plants.map(p => p.name.split('(')[0].trim()).slice(0, 6).join(', ');
     const colors = extractColors(plants);
     
+    // Define lighting description
+    const lighting = sunExposure === 'full-sun' ? 'bright sunny day, warm golden sunlight' : 
+                     sunExposure === 'partial-sun' ? 'soft dappled sunlight' : 
+                     'gentle shade, cool peaceful lighting';
+    
     const prompt = createWatercolorPrompt(plantNames, colors, sunExposure, theme);
     
     console.log('Prompt created:', prompt.substring(0, 100) + '...');
