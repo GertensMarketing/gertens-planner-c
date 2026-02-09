@@ -12,7 +12,7 @@ exports.handler = async (event, context) => {
   }
 
   try {
-    const { plants, sunExposure, theme } = JSON.parse(event.body);
+    const { plants, sunExposure, theme, originalImage } = JSON.parse(event.body);
 
     if (!process.env.GEMINI_API_KEY) {
       throw new Error('GEMINI_API_KEY not set');
@@ -29,8 +29,45 @@ exports.handler = async (event, context) => {
     
     console.log('Prompt created:', prompt.substring(0, 100) + '...');
 
-    // Use Imagen 4.0 model for image generation
-    // This is Google's latest image generation model
+    // Use Gemini 2.5 Flash with the original image for better context
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const visionModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+    console.log('Asking Gemini to analyze the scene and create watercolor prompt...');
+
+    // First, get Gemini to describe the scene so we can create a more accurate watercolor
+    const imageData = originalImage ? originalImage.split(',')[1] : null;
+    
+    let enhancedPrompt = prompt;
+    
+    if (imageData) {
+      const analysisResult = await visionModel.generateContent([
+        'Describe this garden/yard scene briefly. Include: the house style, current landscape features, viewpoint/angle, and any existing hardscape elements. Keep it under 100 words.',
+        {
+          inlineData: {
+            data: imageData,
+            mimeType: 'image/jpeg'
+          }
+        }
+      ]);
+      
+      const sceneDescription = await analysisResult.response.text();
+      console.log('Scene description:', sceneDescription.substring(0, 150));
+      
+      // Enhance prompt with scene details
+      enhancedPrompt = `Watercolor painting showing this exact scene: ${sceneDescription}
+
+But with the garden bed transformed and filled with beautiful blooming plants: ${plantNames}, ${colors.join(', ')} flowers, lush green foliage.
+
+Maintain the same viewpoint, house position, and all architectural elements from the original scene.
+The garden bed is now mature and in full bloom with these specific plants arranged beautifully.
+${lighting}, professional watercolor illustration style, soft flowing colors, 
+artistic landscape visualization, delicate brush strokes, layered washes.
+The house and yard stay the same - only the garden bed is transformed with flowers.`;
+    }
+    
+    console.log('Enhanced prompt created');
+    console.log('Calling Imagen API...');
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${process.env.GEMINI_API_KEY}`;
     
     const response = await fetch(apiUrl, {
@@ -41,7 +78,7 @@ exports.handler = async (event, context) => {
       body: JSON.stringify({
         instances: [
           {
-            prompt: prompt
+            prompt: enhancedPrompt
           }
         ],
         parameters: {
@@ -108,28 +145,31 @@ exports.handler = async (event, context) => {
 };
 
 function createWatercolorPrompt(plantNames, colors, sunExposure, theme) {
-  const lighting = sunExposure === 'full-sun' ? 'bright sunny day, warm golden light' : 
-                   sunExposure === 'partial-sun' ? 'soft dappled sunlight filtering through trees' : 
+  const lighting = sunExposure === 'full-sun' ? 'bright sunny day, warm golden sunlight' : 
+                   sunExposure === 'partial-sun' ? 'soft dappled sunlight' : 
                    'gentle shade, cool peaceful lighting';
   
-  const mood = theme === 'white-moonlight' ? 'elegant white flower garden, serene and peaceful' :
-               theme === 'colors-galore' ? 'vibrant rainbow garden bursting with color' :
+  const mood = theme === 'white-moonlight' ? 'elegant white flower garden' :
+               theme === 'colors-galore' ? 'vibrant colorful garden' :
                theme === 'minnesota-native' ? 'natural prairie wildflower garden' :
                theme === 'shade-loving' ? 'lush green woodland garden' :
                theme === 'fun-in-sun' ? 'cheerful sunny flower garden' :
                'beautiful flower garden';
 
   const colorDescription = colors.length > 0 ? 
-    `featuring ${colors.join(', ')} blooms` : 
+    `with ${colors.join(', ')} blooms` : 
     'with colorful flowers';
 
-  return `A beautiful watercolor painting of a ${mood} in full summer bloom. 
-Garden bed filled with ${plantNames}, ${colorDescription}, and lush green foliage. 
-${lighting}, professional watercolor illustration style by a landscape artist. 
-Soft flowing translucent colors, artistic garden design visualization, 
-dreamy botanical aesthetic, high quality botanical watercolor art, 
-delicate brush strokes, soft edges, layered washes, flowing paint technique. 
-Garden bed perspective view, natural organic composition.`;
+  return `Watercolor painting of a suburban home's front yard garden in full summer bloom. 
+The scene shows a residential house with landscaping in the foreground.
+The garden bed near the house entrance is filled with ${plantNames}, ${colorDescription}, and lush green foliage in a ${mood} style.
+${lighting}, residential setting, house visible in background, front yard perspective.
+Professional watercolor illustration style, soft flowing translucent colors, 
+artistic landscape visualization showing both the home and garden together,
+delicate brush strokes, soft edges, layered washes, botanical watercolor art.
+The garden bed is the focal point with beautiful mature blooming plants, 
+while the house and surrounding yard provide context.
+Natural residential landscape composition.`;
 }
 
 function extractColors(plants) {
