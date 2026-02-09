@@ -4,7 +4,7 @@ const Header = () => {
   return (
     <header className="blueprint-pattern text-white shadow-lg">
       <div className="container mx-auto px-4 py-6">
-        <div className="flex items-center justify-center space-x-6">
+        <div className="flex flex-col items-center justify-center space-y-3">
           <img 
             src="/images/gertens-logo.png" 
             alt="Gertens Garden Center" 
