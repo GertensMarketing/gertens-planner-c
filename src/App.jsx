@@ -15,7 +15,7 @@ function App() {
   });
   const [gardenPlan, setGardenPlan] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [loadingDiagram, setLoadingDiagram] = useState(false);
+  const [loadingWatercolor, setLoadingWatercolor] = useState(false);
 
   const handleImageUpload = (imageData) => {
     setUploadedImage(imageData);
@@ -57,17 +57,17 @@ function App() {
 
       const data = await response.json();
       
-      // Set initial plan without diagram
+      // Set initial plan without watercolor
       setGardenPlan({
         ...data,
-        visualizations: { birdEye: null }
+        visualizations: { watercolor: null }
       });
       
       setLoading(false);
       
-      // Step 2: Generate bird's eye diagram (async, in background)
+      // Step 2: Generate watercolor rendering (async, in background)
       if (data.recommendation && data.recommendation.plants) {
-        generateDiagram(data.recommendation.plants);
+        generateWatercolor(data.recommendation.plants, userAnswers.sunExposure, userAnswers.theme);
       }
 
     } catch (error) {
@@ -80,38 +80,41 @@ function App() {
     }
   };
 
-  const generateDiagram = async (plants) => {
-    setLoadingDiagram(true);
+  const generateWatercolor = async (plants, sunExposure, theme) => {
+    setLoadingWatercolor(true);
     
     try {
-      const response = await fetch('/.netlify/functions/generate-diagram', {
+      const response = await fetch('/.netlify/functions/generate-watercolor', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          outlinePoints: outlinePoints,
-          plants: plants
+          plants: plants,
+          sunExposure: sunExposure,
+          theme: theme
         })
       });
 
       if (response.ok) {
         const data = await response.json();
         
-        // Update garden plan with diagram
-        setGardenPlan(prev => ({
-          ...prev,
-          visualizations: {
-            ...prev.visualizations,
-            birdEye: data.diagram,
-            type: 'svg'
-          }
-        }));
+        if (data.success) {
+          // Update garden plan with watercolor
+          setGardenPlan(prev => ({
+            ...prev,
+            visualizations: {
+              ...prev.visualizations,
+              watercolor: data.image,
+              type: 'image'
+            }
+          }));
+        }
       }
     } catch (error) {
-      console.error('Error generating diagram:', error);
+      console.error('Error generating watercolor:', error);
     } finally {
-      setLoadingDiagram(false);
+      setLoadingWatercolor(false);
     }
   };
 
@@ -122,7 +125,7 @@ function App() {
     setAnswers({ sunExposure: '', theme: '' });
     setGardenPlan(null);
     setLoading(false);
-    setLoadingDiagram(false);
+    setLoadingWatercolor(false);
   };
 
   return (
@@ -195,7 +198,7 @@ function App() {
             <GardenPlanResult
               gardenPlan={gardenPlan}
               loading={loading}
-              loadingDiagram={loadingDiagram}
+              loadingWatercolor={loadingWatercolor}
               onStartOver={handleStartOver}
             />
           )}
