@@ -19,13 +19,11 @@ exports.handler = async (event, context) => {
     
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const imageGenModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-image' });
 
     const imageData = image.split(',')[1];
 
-    console.log('Step 1: Generating plant recommendations...');
+    console.log('Generating plant recommendations...');
     
-    // First, get the plant recommendations
     const planPrompt = `You are an expert landscape designer for Gertens Garden Center in Minnesota. 
 
 Analyze this garden space photo and create a detailed landscape plan.
@@ -87,75 +85,22 @@ Respond with ONLY valid JSON (no markdown, no code blocks):
       recommendation = createFallbackRecommendation(sunExposure, theme);
     }
 
-    // Generate plant list for visualizations
-    const plantList = recommendation.plants.map(p => p.name).join(', ');
+    // Generate a unique ID for this plan
+    const planId = Date.now().toString(36) + Math.random().toString(36).substring(2);
 
-    console.log('Step 2: Generating watercolor rendering...');
+    // Store the request data for visualization generation
+    // Note: In a real production app, you'd store this in a database
+    // For now, we'll pass it back to the client
+    const visualizationRequest = {
+      planId,
+      image,
+      outlinePoints,
+      plants: recommendation.plants,
+      sunExposure,
+      theme
+    };
 
-    // Generate watercolor rendering using the original photo as reference
-    const watercolorPrompt = `Create a beautiful watercolor illustration showing this garden space transformed with the following plants: ${plantList}.
-
-Style requirements:
-- Watercolor painting style with soft, flowing colors
-- Maintain the same viewing angle and framing as the reference photo
-- Show the garden in full bloom during summer
-- Include these specific plants placed appropriately: ${recommendation.plants.map(p => `${p.name} (${p.placement})`).join('; ')}
-- Artistic, dreamy garden aesthetic
-- Vibrant colors for flowers, lush greens for foliage
-- Professional landscape illustration quality`;
-
-    let watercolorImage = null;
-    try {
-      const watercolorResult = await imageGenModel.generateContent([
-        watercolorPrompt,
-        {
-          inlineData: {
-            data: imageData,
-            mimeType: 'image/jpeg'
-          }
-        }
-      ]);
-      
-      const watercolorResponse = await watercolorResult.response;
-      // Note: Image generation returns base64 in the response
-      watercolorImage = watercolorResponse.text(); // This will contain the base64 image
-      console.log('✅ Watercolor rendering generated');
-    } catch (imgError) {
-      console.error('Watercolor generation failed:', imgError.message);
-      watercolorImage = null;
-    }
-
-    console.log('Step 3: Generating bird\'s eye planting diagram...');
-
-    // Generate bird's eye view planting diagram
-    const birdEyePrompt = `Create a black and white bird's eye view planting diagram showing the exact placement and spacing of plants.
-
-Requirements:
-- Top-down view (bird's eye perspective)
-- Black ink on white paper style, like an architectural drawing
-- Show the garden bed outline matching these coordinates: ${JSON.stringify(outlinePoints)}
-- Draw circles or shapes representing each plant with their names labeled
-- Include spacing measurements between plants (in feet)
-- Show plant placement: ${recommendation.plants.map(p => `${p.name} at ${p.placement}`).join('; ')}
-- Professional landscape architecture diagram style
-- Clear, readable labels for each plant
-- Include a simple scale reference
-- Show the outline boundary clearly
-
-Style: Technical drawing, clean lines, architectural planting plan.`;
-
-    let birdEyeImage = null;
-    try {
-      const birdEyeResult = await model.generateContent(birdEyePrompt);
-      const birdEyeResponse = await birdEyeResult.response;
-      birdEyeImage = birdEyeResponse.text();
-      console.log('✅ Bird\'s eye diagram generated');
-    } catch (imgError) {
-      console.error('Bird\'s eye generation failed:', imgError.message);
-      birdEyeImage = null;
-    }
-
-    console.log('=== SUCCESS - All assets generated ===');
+    console.log('=== SUCCESS - Plan generated, visualization request created ===');
 
     return {
       statusCode: 200,
@@ -167,11 +112,9 @@ Style: Technical drawing, clean lines, architectural planting plan.`;
       body: JSON.stringify({
         success: true,
         recommendation: recommendation,
-        visualizations: {
-          watercolor: watercolorImage,
-          birdEye: birdEyeImage,
-          note: 'Watercolor shows transformed garden in same angle. Bird\'s eye shows planting layout and spacing.'
-        }
+        planId: planId,
+        visualizationRequest: visualizationRequest,
+        message: 'Plant recommendations ready! Visualizations will be generated separately.'
       })
     };
 
@@ -197,7 +140,7 @@ Style: Technical drawing, clean lines, architectural planting plan.`;
 
 function createFallbackRecommendation(sunExposure, theme) {
   return {
-    overview: "A beautiful Minnesota garden designed for your conditions.",
+    overview: "A beautiful Minnesota-hardy garden designed for your conditions.",
     plants: [
       {
         name: "Black-Eyed Susan (Rudbeckia fulgida)",
