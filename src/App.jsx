@@ -5,6 +5,7 @@ import QuestionFlow from './components/QuestionFlow';
 import GardenPlanResult from './components/GardenPlanResult';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import About from './components/About';
 
 function App() {
   const [step, setStep] = useState(1); // 1: Upload, 2: Outline, 3: Questions, 4: Result
@@ -17,6 +18,7 @@ function App() {
   const [gardenPlan, setGardenPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingWatercolor, setLoadingWatercolor] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
 
   const handleImageUpload = (imageData) => {
     setUploadedImage(imageData);
@@ -177,32 +179,39 @@ function App() {
 
         {/* Step Content */}
         <div className="card">
-          {step === 1 && (
-            <ImageUploader onImageUpload={handleImageUpload} />
-          )}
+          {showAbout ? (
+            <About onBack={() => setShowAbout(false)} />
+          ) : (
+            <>
+              {step === 1 && (
+                <ImageUploader onImageUpload={handleImageUpload} />
+              )}
 
-          {step === 2 && uploadedImage && (
-            <GardenOutlineTool
-              image={uploadedImage}
-              onComplete={handleOutlineComplete}
-              onBack={() => setStep(1)}
-            />
-          )}
+              {step === 2 && uploadedImage && (
+                <GardenOutlineTool
+                  image={uploadedImage}
+                  onComplete={handleOutlineComplete}
+                  onBack={() => setStep(1)}
+                />
+              )}
 
-          {step === 3 && (
-            <QuestionFlow
-              onComplete={handleQuestionsComplete}
-              onBack={() => setStep(2)}
-            />
-          )}
+              {step === 3 && (
+                <QuestionFlow
+                  onComplete={handleQuestionsComplete}
+                  onBack={() => setStep(2)}
+                />
+              )}
 
-          {step === 4 && (
-            <GardenPlanResult
-              gardenPlan={gardenPlan}
-              loading={loading}
-              loadingWatercolor={loadingWatercolor}
-              onStartOver={handleStartOver}
-            />
+              {step === 4 && (
+                <GardenPlanResult
+                  gardenPlan={gardenPlan}
+                  loading={loading}
+                  loadingWatercolor={loadingWatercolor}
+                  onStartOver={handleStartOver}
+                  onShowAbout={() => setShowAbout(true)}
+                />
+              )}
+            </>
           )}
         </div>
       </main>
