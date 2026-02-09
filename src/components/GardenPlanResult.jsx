@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 
-const GardenPlanResult = ({ gardenPlan, loading, onStartOver }) => {
-  const [activeTab, setActiveTab] = useState('plants'); // plants, watercolor, diagram
+const GardenPlanResult = ({ gardenPlan, loading, loadingDiagram, onStartOver }) => {
+  const [activeTab, setActiveTab] = useState('plants');
 
   if (loading) {
     return (
@@ -28,7 +28,7 @@ const GardenPlanResult = ({ gardenPlan, loading, onStartOver }) => {
               Creating Your Custom Garden Plan
             </h3>
             <p className="text-gray-600">
-              Our AI is analyzing your space and creating visualizations...
+              Our AI is analyzing your space and selecting perfect plants...
             </p>
           </div>
           <div className="max-w-md">
@@ -40,14 +40,6 @@ const GardenPlanResult = ({ gardenPlan, loading, onStartOver }) => {
               <p className="flex items-center justify-center">
                 <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
                 Selecting Minnesota-hardy plants
-              </p>
-              <p className="flex items-center justify-center">
-                <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-                Creating watercolor rendering
-              </p>
-              <p className="flex items-center justify-center">
-                <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-                Designing planting diagram
               </p>
             </div>
           </div>
@@ -85,7 +77,7 @@ const GardenPlanResult = ({ gardenPlan, loading, onStartOver }) => {
     );
   }
 
-  const hasVisualizations = gardenPlan?.visualizations?.watercolor || gardenPlan?.visualizations?.birdEye;
+  const hasDiagram = gardenPlan?.visualizations?.birdEye;
 
   return (
     <div>
@@ -109,51 +101,38 @@ const GardenPlanResult = ({ gardenPlan, loading, onStartOver }) => {
           Your Custom Garden Plan is Ready!
         </h2>
         <p className="text-gray-600">
-          Complete with plant recommendations and visualizations
+          Personalized plant recommendations for your Minnesota garden
         </p>
       </div>
 
       {/* Tab Navigation */}
-      {hasVisualizations && (
-        <div className="mb-6">
-          <div className="flex border-b border-gray-200">
-            <button
-              onClick={() => setActiveTab('plants')}
-              className={`px-6 py-3 font-semibold transition-colors ${
-                activeTab === 'plants'
-                  ? 'text-gertens-blue border-b-2 border-gertens-blue'
-                  : 'text-gray-600 hover:text-gertens-blue'
-              }`}
-            >
-              🌱 Plant List
-            </button>
-            {gardenPlan?.visualizations?.watercolor && (
-              <button
-                onClick={() => setActiveTab('watercolor')}
-                className={`px-6 py-3 font-semibold transition-colors ${
-                  activeTab === 'watercolor'
-                    ? 'text-gertens-blue border-b-2 border-gertens-blue'
-                    : 'text-gray-600 hover:text-gertens-blue'
-                }`}
-              >
-                🎨 Watercolor View
-              </button>
+      <div className="mb-6">
+        <div className="flex border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('plants')}
+            className={`px-6 py-3 font-semibold transition-colors ${
+              activeTab === 'plants'
+                ? 'text-gertens-blue border-b-2 border-gertens-blue'
+                : 'text-gray-600 hover:text-gertens-blue'
+            }`}
+          >
+            🌱 Plant List
+          </button>
+          <button
+            onClick={() => setActiveTab('diagram')}
+            className={`px-6 py-3 font-semibold transition-colors relative ${
+              activeTab === 'diagram'
+                ? 'text-gertens-blue border-b-2 border-gertens-blue'
+                : 'text-gray-600 hover:text-gertens-blue'
+            }`}
+          >
+            📐 Planting Diagram
+            {loadingDiagram && (
+              <span className="ml-2 inline-block w-4 h-4 border-2 border-gertens-blue border-t-transparent rounded-full animate-spin"></span>
             )}
-            {gardenPlan?.visualizations?.birdEye && (
-              <button
-                onClick={() => setActiveTab('diagram')}
-                className={`px-6 py-3 font-semibold transition-colors ${
-                  activeTab === 'diagram'
-                    ? 'text-gertens-blue border-b-2 border-gertens-blue'
-                    : 'text-gray-600 hover:text-gertens-blue'
-                }`}
-              >
-                📐 Planting Diagram
-              </button>
-            )}
-          </div>
+          </button>
         </div>
-      )}
+      </div>
 
       {/* Tab Content */}
       <div className="bg-white rounded-xl shadow-lg p-8 mb-6">
@@ -183,11 +162,16 @@ const GardenPlanResult = ({ gardenPlan, loading, onStartOver }) => {
                       key={index}
                       className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
                     >
-                      <h4 className="font-bold text-gertens-blue mb-1">
-                        {plant.name}
-                      </h4>
+                      <div className="flex items-start justify-between">
+                        <h4 className="font-bold text-gertens-blue mb-1 flex-1">
+                          {plant.name}
+                        </h4>
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gertens-blue text-white text-xs font-bold flex-shrink-0">
+                          {index + 1}
+                        </span>
+                      </div>
                       {plant.type && (
-                        <p className="text-sm text-gray-500 mb-2">
+                        <p className="text-sm text-gray-500 mb-2 capitalize">
                           {plant.type}
                         </p>
                       )}
@@ -248,45 +232,35 @@ const GardenPlanResult = ({ gardenPlan, loading, onStartOver }) => {
           </div>
         )}
 
-        {activeTab === 'watercolor' && gardenPlan?.visualizations?.watercolor && (
-          <div>
-            <h3 className="text-2xl font-bold text-gray-800 mb-4">
-              🎨 Watercolor Garden Rendering
-            </h3>
-            <p className="text-gray-600 mb-6">
-              Your garden transformed! This artistic rendering shows how your space will look in full bloom.
-            </p>
-            <div className="bg-gray-100 rounded-lg p-4">
-              <img
-                src={`data:image/png;base64,${gardenPlan.visualizations.watercolor}`}
-                alt="Watercolor garden rendering"
-                className="w-full rounded-lg shadow-lg"
-              />
-            </div>
-            <p className="text-sm text-gray-500 mt-4 text-center">
-              Watercolor illustration showing your garden from the same angle as your photo
-            </p>
-          </div>
-        )}
-
-        {activeTab === 'diagram' && gardenPlan?.visualizations?.birdEye && (
+        {activeTab === 'diagram' && (
           <div>
             <h3 className="text-2xl font-bold text-gray-800 mb-4">
               📐 Bird's Eye Planting Diagram
             </h3>
-            <p className="text-gray-600 mb-6">
-              Top-down view showing exact plant placement and spacing within your outlined area.
-            </p>
-            <div className="bg-white rounded-lg p-4 border-2 border-gray-300">
-              <img
-                src={`data:image/png;base64,${gardenPlan.visualizations.birdEye}`}
-                alt="Bird's eye planting diagram"
-                className="w-full rounded-lg"
-              />
-            </div>
-            <p className="text-sm text-gray-500 mt-4 text-center">
-              Professional planting diagram with plant locations and spacing measurements
-            </p>
+            {loadingDiagram && !hasDiagram ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gertens-blue mx-auto mb-4"></div>
+                <p className="text-gray-600">Generating your planting diagram...</p>
+              </div>
+            ) : hasDiagram ? (
+              <div>
+                <p className="text-gray-600 mb-6">
+                  Top-down view showing exact plant placement within your outlined area. Each numbered circle corresponds to the plants in your list.
+                </p>
+                <div className="bg-white rounded-lg border-2 border-gray-300 overflow-hidden">
+                  <div dangerouslySetInnerHTML={{ __html: gardenPlan.visualizations.birdEye }} />
+                </div>
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-gray-700">
+                    <strong>How to use this diagram:</strong> The numbers on the diagram match the plant numbers in your Plant List. Use this to visualize spacing and placement in your actual garden bed.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-600">Diagram will appear here once generated.</p>
+              </div>
+            )}
           </div>
         )}
       </div>
