@@ -47,7 +47,6 @@ exports.handler = async (event, context) => {
         parameters: {
           sampleCount: 1,
           aspectRatio: "4:3",
-          negativePrompt: "photo, photograph, realistic, 3d render, cartoon, anime, ugly, blurry, low quality, text, watermark",
           safetyFilterLevel: "block_some",
           personGeneration: "dont_allow"
         }
