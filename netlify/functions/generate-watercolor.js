@@ -21,9 +21,12 @@ exports.handler = async (event, context) => {
     console.log('Generating watercolor with Gemini Imagen...');
     console.log('Plants:', plants.length);
 
-    // Create detailed prompt for watercolor garden
-    const plantNames = plants.map(p => p.name.split('(')[0].trim()).slice(0, 6).join(', ');
+    // Create detailed list of ALL plants - list each one explicitly
+    const plantList = plants.map((p, i) => `${i + 1}. ${p.name}`).join(', ');
+    const plantNames = plants.map(p => p.name.split('(')[0].trim()).join(', ');
     const colors = extractColors(plants);
+    
+    console.log('Plant list:', plantList);
     
     // Define lighting description
     const lighting = sunExposure === 'full-sun' ? 'bright sunny day, warm golden sunlight' : 
@@ -60,15 +63,36 @@ exports.handler = async (event, context) => {
       console.log('Scene description:', sceneDescription.substring(0, 150));
       
       // Enhance prompt with scene details
-      enhancedPrompt = `Watercolor painting showing this exact scene: ${sceneDescription}
+      enhancedPrompt = `Soft pastel watercolor painting showing this exact scene: ${sceneDescription}
 
-But with the garden bed transformed and filled with beautiful blooming plants: ${plantNames}, ${colors.join(', ')} flowers, lush green foliage.
+CRITICAL: The garden bed must contain ONLY these specific plants (no other plants):
+${plantList}
 
+The garden bed is beautifully transformed with these exact plants in full bloom.
 Maintain the same viewpoint, house position, and all architectural elements from the original scene.
-The garden bed is now mature and in full bloom with these specific plants arranged beautifully.
-${lighting}, professional watercolor illustration style, soft flowing colors, 
-artistic landscape visualization, delicate brush strokes, layered washes.
-The house and yard stay the same - only the garden bed is transformed with flowers.`;
+
+STYLE REQUIREMENTS:
+- Soft pastel watercolor style with gentle, muted colors
+- Light washes and translucent layers
+- Minimal detail, impressionistic approach  
+- Soft edges with colors bleeding slightly into each other
+- Dreamy, ethereal quality
+- Pale ${colors.join(', ')} tones with lots of white space
+- Delicate loose brush strokes
+- Airy and light composition
+- ${lighting}
+
+The house and existing landscape stay exactly the same - only the outlined garden bed area is filled with these beautiful flowering plants in a soft, pastel watercolor style.`;
+    } else {
+      // Fallback if no image provided
+      enhancedPrompt = `Soft pastel watercolor painting of a residential garden bed in full bloom.
+
+The garden contains ONLY these specific plants:
+${plantList}
+
+STYLE: Soft pastel watercolor, gentle muted colors, light washes, minimal detail, impressionistic, 
+soft edges, dreamy ethereal quality, pale ${colors.join(', ')} tones, delicate loose brushstrokes, 
+airy light composition, ${lighting}.`;
     }
     
     console.log('Enhanced prompt created');
@@ -150,31 +174,30 @@ The house and yard stay the same - only the garden bed is transformed with flowe
 };
 
 function createWatercolorPrompt(plantNames, colors, sunExposure, theme) {
-  const lighting = sunExposure === 'full-sun' ? 'bright sunny day, warm golden sunlight' : 
-                   sunExposure === 'partial-sun' ? 'soft dappled sunlight' : 
-                   'gentle shade, cool peaceful lighting';
+  const lighting = sunExposure === 'full-sun' ? 'soft sunny lighting with gentle warmth' : 
+                   sunExposure === 'partial-sun' ? 'dappled light filtering through' : 
+                   'cool peaceful shade with soft light';
   
-  const mood = theme === 'white-moonlight' ? 'elegant white flower garden' :
-               theme === 'colors-galore' ? 'vibrant colorful garden' :
-               theme === 'minnesota-native' ? 'natural prairie wildflower garden' :
-               theme === 'shade-loving' ? 'lush green woodland garden' :
-               theme === 'fun-in-sun' ? 'cheerful sunny flower garden' :
-               'beautiful flower garden';
+  const mood = theme === 'white-moonlight' ? 'elegant pale white and cream garden' :
+               theme === 'colors-galore' ? 'gentle pastel rainbow garden' :
+               theme === 'minnesota-native' ? 'soft natural prairie garden' :
+               theme === 'shade-loving' ? 'peaceful green shade garden' :
+               theme === 'fun-in-sun' ? 'cheerful pastel flower garden' :
+               'beautiful soft flower garden';
 
   const colorDescription = colors.length > 0 ? 
-    `with ${colors.join(', ')} blooms` : 
-    'with colorful flowers';
+    `with pale ${colors.join(', ')} blooms` : 
+    'with soft pastel flowers';
 
-  return `Watercolor painting of a suburban home's front yard garden in full summer bloom. 
+  return `Soft pastel watercolor painting of a suburban home's front yard garden in gentle bloom. 
 The scene shows a residential house with landscaping in the foreground.
-The garden bed near the house entrance is filled with ${plantNames}, ${colorDescription}, and lush green foliage in a ${mood} style.
+The garden bed near the house entrance is filled with ${plantNames}, ${colorDescription}, in a ${mood} style.
 ${lighting}, residential setting, house visible in background, front yard perspective.
-Professional watercolor illustration style, soft flowing translucent colors, 
-artistic landscape visualization showing both the home and garden together,
-delicate brush strokes, soft edges, layered washes, botanical watercolor art.
-The garden bed is the focal point with beautiful mature blooming plants, 
-while the house and surrounding yard provide context.
-Natural residential landscape composition.`;
+Soft pastel watercolor illustration style, gentle muted translucent colors, light washes, minimal detail,
+impressionistic approach with soft edges, dreamy ethereal aesthetic, delicate loose brush strokes,
+airy and light botanical watercolor art with lots of breathing room.
+The garden bed is softly rendered with beautiful plants in pale pastel tones.
+Natural residential landscape composition with a peaceful, dreamy quality.`;
 }
 
 function extractColors(plants) {
