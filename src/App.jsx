@@ -15,6 +15,7 @@ function App() {
   });
   const [gardenPlan, setGardenPlan] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadingDiagram, setLoadingDiagram] = useState(false);
 
   const handleImageUpload = (imageData) => {
     setUploadedImage(imageData);
@@ -36,7 +37,7 @@ function App() {
     setStep(4);
 
     try {
-      // Call Netlify function to interact with Gemini API
+      // Step 1: Get plant recommendations (fast - ~20 seconds)
       const response = await fetch('/.netlify/functions/generate-plan', {
         method: 'POST',
         headers: {
@@ -55,15 +56,62 @@ function App() {
       }
 
       const data = await response.json();
-      setGardenPlan(data);
+      
+      // Set initial plan without diagram
+      setGardenPlan({
+        ...data,
+        visualizations: { birdEye: null }
+      });
+      
+      setLoading(false);
+      
+      // Step 2: Generate bird's eye diagram (async, in background)
+      if (data.recommendation && data.recommendation.plants) {
+        generateDiagram(data.recommendation.plants);
+      }
+
     } catch (error) {
       console.error('Error generating garden plan:', error);
       setGardenPlan({
         error: 'Failed to generate garden plan. Please try again.',
         recommendation: null
       });
-    } finally {
       setLoading(false);
+    }
+  };
+
+  const generateDiagram = async (plants) => {
+    setLoadingDiagram(true);
+    
+    try {
+      const response = await fetch('/.netlify/functions/generate-diagram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          outlinePoints: outlinePoints,
+          plants: plants
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Update garden plan with diagram
+        setGardenPlan(prev => ({
+          ...prev,
+          visualizations: {
+            ...prev.visualizations,
+            birdEye: data.diagram,
+            type: 'svg'
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Error generating diagram:', error);
+    } finally {
+      setLoadingDiagram(false);
     }
   };
 
@@ -74,6 +122,7 @@ function App() {
     setAnswers({ sunExposure: '', theme: '' });
     setGardenPlan(null);
     setLoading(false);
+    setLoadingDiagram(false);
   };
 
   return (
@@ -146,6 +195,7 @@ function App() {
             <GardenPlanResult
               gardenPlan={gardenPlan}
               loading={loading}
+              loadingDiagram={loadingDiagram}
               onStartOver={handleStartOver}
             />
           )}
