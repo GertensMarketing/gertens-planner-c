@@ -4,6 +4,7 @@ import GardenOutlineTool from './components/GardenOutlineTool';
 import QuestionFlow from './components/QuestionFlow';
 import GardenPlanResult from './components/GardenPlanResult';
 import Header from './components/Header';
+import Footer from './components/Footer';
 
 function App() {
   const [step, setStep] = useState(1); // 1: Upload, 2: Outline, 3: Questions, 4: Result
@@ -130,10 +131,10 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-blueprint-bg">
+    <div className="min-h-screen bg-blueprint-bg flex flex-col">
       <Header />
       
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
+      <main className="flex-grow container mx-auto px-4 py-8 max-w-6xl">
         {/* Progress Indicator */}
         <div className="mb-8">
           <div className="flex items-center justify-center space-x-2">
@@ -204,17 +205,9 @@ function App() {
             />
           )}
         </div>
-
-        {/* Footer */}
-        <div className="mt-8 text-center text-sm text-gray-600">
-          <p>
-            Powered by AI • Designed for Gertens Garden Center
-          </p>
-          <p className="mt-2">
-            All plant recommendations are guaranteed to thrive in Minnesota's climate
-          </p>
-        </div>
       </main>
+
+      <Footer />
     </div>
   );
 }
