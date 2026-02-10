@@ -69,6 +69,16 @@ const GardenPlanResult = ({ gardenPlan, loading, loadingWatercolor, onStartOver,
 
   return (
     <div>
+      {/* TEST BANNER - Remove after confirming deployment */}
+      <div className="bg-yellow-400 border-4 border-yellow-600 rounded-lg p-4 mb-6 text-center">
+        <p className="text-2xl font-bold text-gray-900">
+          ✅ NEW CODE DEPLOYED - Version 2.0
+        </p>
+        <p className="text-sm text-gray-800 mt-1">
+          If you see this banner, the new code is active!
+        </p>
+      </div>
+
       <div className="text-center mb-8">
         <div className="inline-block p-3 bg-green-100 rounded-full mb-4">
           <svg
@@ -285,15 +295,16 @@ const GardenPlanResult = ({ gardenPlan, loading, loadingWatercolor, onStartOver,
         </div>
       </div>
 
-      {/* Start Over */}
+      {/* Start Over and About */}
       <div className="text-center">
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          {/* ABOUT BUTTON - Made super visible for testing */}
           <button
             onClick={onShowAbout}
-            className="inline-flex items-center text-gertens-blue hover:text-blue-700 font-semibold"
+            className="bg-red-500 text-white px-8 py-4 rounded-lg font-bold text-lg hover:bg-red-600 transition-colors inline-flex items-center shadow-lg"
           >
             <svg
-              className="w-5 h-5 mr-2"
+              className="w-6 h-6 mr-2"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -305,7 +316,7 @@ const GardenPlanResult = ({ gardenPlan, loading, loadingWatercolor, onStartOver,
                 d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
               />
             </svg>
-            About These Recommendations
+            🔴 ABOUT THESE RECOMMENDATIONS 🔴
           </button>
           
           <button
