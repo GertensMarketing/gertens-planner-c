@@ -203,7 +203,7 @@ const About = ({ onBack }) => {
                 rel="noopener noreferrer"
                 className="inline-block bg-white text-gertens-blue px-8 py-3 rounded-lg font-bold hover:bg-blue-50 transition-colors"
               >
-                Visit Gertens.com to Find a Location
+                Visit Gertens.com
               </a>
             </div>
           </div>
